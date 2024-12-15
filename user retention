@@ -1,0 +1,37 @@
+print("\n--- Advanced Gaming User Retention Prediction ---")
+games_df['score_delta'] = games_df['score'].diff().fillna(0)
+
+# Feature Engineering
+agg_features = games_df.groupby('game_id')[['score', 'move', 'board']].agg(['mean', 'std', 'max']).reset_index()
+scaler = MinMaxScaler()
+scaled_features = scaler.fit_transform(agg_features.iloc[:, 1:])
+
+# LSTM Sequence Modeling for Retention
+X, y = [], []
+seq_length = 15
+for i in range(seq_length, len(scaled_features)):
+    X.append(scaled_features[i-seq_length:i])
+    y.append(games_df['score'].iloc[i])
+
+X, y = np.array(X), np.array(y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+lstm_model = Sequential([
+    LSTM(128, return_sequences=True, activation='tanh', input_shape=(seq_length, X.shape[2])),
+    Dropout(0.3),
+    LSTM(64, activation='tanh'),
+    Dropout(0.3),
+    Dense(1, activation='relu')
+])
+
+lstm_model.compile(optimizer='adam', loss='mae', metrics=['mse'])
+lstm_model.fit(X_train, y_train, epochs=10, batch_size=20, validation_data=(X_test, y_test))
+
+# LSTM Evaluation and Visualization
+lstm_predictions = lstm_model.predict(X_test)
+plt.figure(figsize=(12, 6))
+plt.plot(y_test, label='True Scores', alpha=0.6)
+plt.plot(lstm_predictions, label='Predicted Scores', alpha=0.6)
+plt.title('Advanced LSTM Predictions for User Retention')
+plt.legend()
+plt.show()
